@@ -4,19 +4,21 @@ const CONCURRENCY = parseInt(Deno.env.get("MAX_THREADS") || "", 10) || navigator
 
 const workers: WorkerWithStatus[] = [];
 const taskQueue: Task[] = [];
+const idleWorkers: WorkerWithStatus[] = [];
 
 function dispatch() {
-    const idleWorker = workers.find(w => w.isIdle);
-    if (!idleWorker || taskQueue.length === 0) {
+    if (idleWorkers.length === 0 || taskQueue.length === 0) {
         return;
     }
 
+    const idleWorker = idleWorkers.pop()!;
     const task = taskQueue.shift()!;
     idleWorker.isIdle = false;
 
     const messageHandler = (e: MessageEvent) => {
         idleWorker.removeEventListener("message", messageHandler);
         idleWorker.isIdle = true;
+        idleWorkers.push(idleWorker);
 
         const { type, data } = e.data;
         if (type === 'success') {
@@ -27,7 +29,7 @@ function dispatch() {
             err.stack = data.stack;
             task.reject(err);
         }
-        dispatch(); // keep checking
+        dispatch();
     };
 
     idleWorker.addEventListener("message", messageHandler);
@@ -46,6 +48,7 @@ export function initializeWorkers() {
         const worker: WorkerWithStatus = new Worker(new URL("../worker.ts", import.meta.url).href, { type: "module" });
         worker.isIdle = true;
         workers.push(worker);
+        idleWorkers.push(worker);
     }
     console.log(`Initialized ${CONCURRENCY} workers`);
 }
