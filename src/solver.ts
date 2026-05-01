@@ -12,17 +12,24 @@ const SOLVER_VARIANT_FALLBACK: Partial<Record<PlayerVariant, PlayerVariant>> = {
     [PlayerVariant.EMBED_TCE]: PlayerVariant.IAS,
 };
 
+const solversByUrl = new Map<string, Solvers>();
+
 export async function getSolvers(playerScript: PlayerScript): Promise<Solvers | null> {
     const fallbackVariant = SOLVER_VARIANT_FALLBACK[playerScript.variant];
     const solverScript = fallbackVariant
         ? playerScript.withVariant(fallbackVariant)
         : playerScript;
 
+    const playerUrl = solverScript.toUrl();
+
+    const cached = solversByUrl.get(playerUrl);
+    if (cached) return cached;
+
     const playerCacheKey = await getPlayerFilePath(solverScript);
 
     let solvers = solverCache.get(playerCacheKey);
-
     if (solvers) {
+        solversByUrl.set(playerUrl, solvers);
         return solvers;
     }
 
@@ -38,10 +45,11 @@ export async function getSolvers(playerScript: PlayerScript): Promise<Solvers | 
         }
         preprocessedCache.set(playerCacheKey, preprocessedPlayer);
     }
-    
+
     solvers = getFromPrepared(preprocessedPlayer);
     if (solvers) {
         solverCache.set(playerCacheKey, solvers);
+        solversByUrl.set(playerUrl, solvers);
         return solvers;
     }
 
