@@ -8,6 +8,7 @@ export enum PlayerVariant {
     TV_ES6 = 'TV_ES6',
     PHONE = 'PHONE',
     EMBED = "EMBED",
+    EMBED_TCE = "EMBED_TCE",
 }
 
 class VariantDetail {
@@ -38,7 +39,8 @@ const playerVariantDetails: VariantDetail[] = [
     new VariantDetail(PlayerVariant.PHONE, /^player-plasma-ias-phone-([a-zA-Z_]+)\.vflset\/base\.js$/, (region) => `player-plasma-ias-phone-${region}.vflset/base.js`),
     new VariantDetail(PlayerVariant.TV, /^tv-player-ias\.vflset\/tv-player-ias\.js$/, () => `tv-player-ias.vflset/tv-player-ias.js`),
     new VariantDetail(PlayerVariant.TV_ES6, /^tv-player-es6\.vflset\/tv-player-es6\.js$/, () => `tv-player-es6.vflset/tv-player-es6.js`),
-    new VariantDetail(PlayerVariant.EMBED, /^player_embed\.vflset\/([a-zA-Z_]+)\/base\.js$/, (region) => `player_ias.vflset/${region}/base.js`),
+    new VariantDetail(PlayerVariant.EMBED, /^player_embed\.vflset\/([a-zA-Z_]+)\/base\.js$/, (region) => `player_embed.vflset/${region}/base.js`),
+    new VariantDetail(PlayerVariant.EMBED_TCE, /^player_embed_tce\.vflset\/([a-zA-Z_]+)\/base\.js$/, (region) => `player_embed_tce.vflset/${region}/base.js`),
 ];
 
 import { playerScriptOverwrites } from "./metrics.ts";
