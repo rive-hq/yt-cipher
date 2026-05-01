@@ -25,32 +25,35 @@ function resolveCacheHome(): string {
 
     if (home) return join(home, ".cache");
 
-    // last resort
     return join(Deno.cwd(), ".cache");
 }
 
 export const CACHE_HOME = resolveCacheHome();
 export const CACHE_DIR = join(CACHE_HOME, 'yt-cipher', 'player_cache');
 
+const filePathCache = new Map<string, string>();
+
+async function computeCacheKey(playerScript: PlayerScript): Promise<string> {
+    if (ignorePlayerScriptRegion) {
+        return playerScript.id;
+    }
+    const playerUrl = playerScript.toUrl();
+    const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(playerUrl));
+    return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 export async function getPlayerFilePath(playerScript: PlayerScript): Promise<string> {
     const playerUrl = playerScript.toUrl();
-    let cacheKey: string;
-    if (ignorePlayerScriptRegion) {
-        // I have not seen any scripts that differ between regions so this should be safe
-        cacheKey = playerScript.id;
-    } else {
-        // This hash of the player script url will mean that diff region scripts are treated as unequals, even for the same version #
-        // I dont think I have ever seen 2 scripts of the same version differ between regions but if they ever do this will catch it
-        // As far as player script access, I haven't ever heard about YT ratelimiting those either so ehh
-        const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(playerUrl));
-        cacheKey = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
-    }
+
+    const cached = filePathCache.get(playerUrl);
+    if (cached) return cached;
+
+    const cacheKey = await computeCacheKey(playerScript);
     const filePath = join(CACHE_DIR, `${cacheKey}.js`);
 
     try {
-        const stat = await Deno.stat(filePath);
-        // updated time on file mark it as recently used.
-        await Deno.utime(filePath, new Date(), stat.mtime ?? new Date());
+        await Deno.stat(filePath);
+        filePathCache.set(playerUrl, filePath);
         return filePath;
     } catch (error) {
         if (error instanceof Deno.errors.NotFound) {
@@ -63,13 +66,13 @@ export async function getPlayerFilePath(playerScript: PlayerScript): Promise<str
             const playerContent = await response.text();
             await Deno.writeTextFile(filePath, playerContent);
 
-            // Update cache size for metrics
             let fileCount = 0;
             for await (const _ of Deno.readDir(CACHE_DIR)) {
                 fileCount++;
             }
             cacheSize.labels({ cache_name: 'player' }).set(fileCount);
-            
+
+            filePathCache.set(playerUrl, filePath);
             console.log(`Saved player to cache: ${filePath}`);
             return filePath;
         }
@@ -80,7 +83,6 @@ export async function getPlayerFilePath(playerScript: PlayerScript): Promise<str
 export async function initializeCache() {
     await ensureDir(CACHE_DIR);
 
-    // Since these accumulate over time just cleanout 14 day unused ones
     let fileCount = 0;
     const thirtyDays = 14 * 24 * 60 * 60 * 1000;
     console.log(`Cleaning up player cache directory: ${CACHE_DIR}`);
